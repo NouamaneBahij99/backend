@@ -1,4 +1,3 @@
-// ===== EtapeCourrierRepository.java =====
 package com.magentatechno.pelican.repository;
 
 import com.magentatechno.pelican.entity.EtapeCourrier;
@@ -13,11 +12,24 @@ import java.util.Optional;
 @Repository
 public interface EtapeCourrierRepository extends JpaRepository<EtapeCourrier, Long> {
 
-    List<EtapeCourrier> findByCourrierIdOrderByEtapeOrdreAsc(Long courrierId);
+    @Query("SELECT ec FROM EtapeCourrier ec " +
+            "LEFT JOIN FETCH ec.etape e " +
+            "LEFT JOIN FETCH e.noeud " +
+            "LEFT JOIN FETCH ec.responsable " +
+            "WHERE ec.courrier.id = :courrierId " +
+            "ORDER BY e.ordre ASC")
+    List<EtapeCourrier> findByCourrierIdOrderByEtapeOrdreAsc(@Param("courrierId") Long courrierId);
 
-    @Query("SELECT ec FROM EtapeCourrier ec WHERE ec.courrier.id = :courrierId AND ec.statut = 'EN_COURS'")
+    @Query("SELECT ec FROM EtapeCourrier ec " +
+            "LEFT JOIN FETCH ec.etape e " +
+            "LEFT JOIN FETCH e.noeud " +
+            "WHERE ec.courrier.id = :courrierId AND ec.statut = 'EN_COURS'")
     Optional<EtapeCourrier> findEtapeCouranteByCourrierID(@Param("courrierId") Long courrierId);
 
-    @Query("SELECT ec FROM EtapeCourrier ec WHERE ec.responsable.id = :userId AND ec.statut = 'EN_COURS'")
+    @Query("SELECT ec FROM EtapeCourrier ec " +
+            "LEFT JOIN FETCH ec.etape e " +
+            "LEFT JOIN FETCH e.noeud " +
+            "LEFT JOIN FETCH ec.courrier " +
+            "WHERE ec.responsable.id = :userId AND ec.statut = 'EN_COURS'")
     List<EtapeCourrier> findEtapesEnCoursByResponsable(@Param("userId") Long userId);
 }

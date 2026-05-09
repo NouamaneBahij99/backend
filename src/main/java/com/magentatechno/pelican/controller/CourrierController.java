@@ -99,10 +99,6 @@ public class CourrierController {
         return ResponseEntity.ok(courrierService.archiver(id));
     }
 
-    @GetMapping("/{id}/historique")
-    public ResponseEntity<?> getHistorique(@PathVariable Long id) {
-        return ResponseEntity.ok(courrierService.findById(id).getHistoriques());
-    }
 
     @GetMapping("/{id}/pdf")
     public ResponseEntity<ByteArrayResource> generatePdf(@PathVariable Long id) {

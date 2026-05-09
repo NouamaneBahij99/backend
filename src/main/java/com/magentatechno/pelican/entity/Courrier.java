@@ -80,7 +80,7 @@ public class Courrier {
     private List<HistoriqueCourrier> historiques = new ArrayList<>();
 
     @OneToMany(mappedBy = "courrier", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    @OrderBy("etape.ordre ASC")
+    @OrderBy("createdAt ASC")
     @Builder.Default
     private List<EtapeCourrier> etapesCourrier = new ArrayList<>();
 
