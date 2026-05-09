@@ -18,7 +18,6 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/courriers")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class CourrierController {
 
     private final CourrierService courrierService;
@@ -46,6 +45,14 @@ public class CourrierController {
         return ResponseEntity.ok(courrierService.findById(id));
     }
 
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('AGENT', 'ADMIN')")
+    public ResponseEntity<CourrierDto.Response> update(
+            @PathVariable Long id,
+            @Valid @RequestBody CourrierDto.UpdateRequest request) {
+        return ResponseEntity.ok(courrierService.update(id, request));
+    }
+
     @PutMapping("/{id}/affecter/{userId}")
     @PreAuthorize("hasAnyRole('AGENT', 'CHEF_SERVICE', 'ADMIN')")
     public ResponseEntity<CourrierDto.Response> affecter(
@@ -53,11 +60,10 @@ public class CourrierController {
         return ResponseEntity.ok(courrierService.affecter(id, userId));
     }
 
-    // ✨ NOUVEAU: ENDPOINT TRANSFERER (US-06)
     @PutMapping("/{id}/transferer/{userId}")
     @PreAuthorize("hasAnyRole('AGENT', 'CHEF_SERVICE', 'ADMIN', 'DIRECTEUR')")
     public ResponseEntity<CourrierDto.Response> transferer(
-            @PathVariable Long id, 
+            @PathVariable Long id,
             @PathVariable Long userId,
             @RequestParam(required = false) String commentaire) {
         return ResponseEntity.ok(courrierService.transferer(id, userId, commentaire));
@@ -66,14 +72,16 @@ public class CourrierController {
     @PutMapping("/{id}/valider")
     @PreAuthorize("hasAnyRole('CHEF_SERVICE', 'DIRECTEUR', 'ADMIN')")
     public ResponseEntity<CourrierDto.Response> valider(
-            @PathVariable Long id, @RequestParam(required = false) String commentaire) {
+            @PathVariable Long id,
+            @RequestParam(required = false) String commentaire) {
         return ResponseEntity.ok(courrierService.valider(id, commentaire));
     }
 
     @PutMapping("/{id}/rejeter")
     @PreAuthorize("hasAnyRole('CHEF_SERVICE', 'DIRECTEUR', 'ADMIN')")
     public ResponseEntity<CourrierDto.Response> rejeter(
-            @PathVariable Long id, @RequestParam String motif) {
+            @PathVariable Long id,
+            @RequestParam String motif) {
         return ResponseEntity.ok(courrierService.rejeter(id, motif));
     }
 
@@ -83,7 +91,6 @@ public class CourrierController {
         return ResponseEntity.ok(courrierService.archiver(id));
     }
 
-    // ✨ NOUVEAU: ENDPOINT GENERER PDF (US-11)
     @GetMapping("/{id}/pdf")
     public ResponseEntity<ByteArrayResource> generatePdf(@PathVariable Long id) {
         byte[] pdfBytes = pdfService.generateCourrierPdf(id);
@@ -91,8 +98,8 @@ public class CourrierController {
 
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
-                .header(HttpHeaders.CONTENT_DISPOSITION, 
-                    "attachment; filename=\"courrier-" + id + ".pdf\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"courrier-" + id + ".pdf\"")
                 .contentLength(pdfBytes.length)
                 .body(resource);
     }
