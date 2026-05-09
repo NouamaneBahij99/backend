@@ -12,7 +12,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/admin/backup")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class BackupController {
 
     private final BackupService backupService;
