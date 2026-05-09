@@ -34,7 +34,7 @@ public class DataInitializer implements CommandLineRunner {
                     .build();
             
             userRepository.save(admin);
-            log.info("✅ Admin créé: admin@pelican.sn / Admin123!");
+            log.info("✅ Admin créé: admin@pelican.sn");
         } else {
             log.info("ℹ️ Admin existe déjà");
         }
@@ -54,7 +54,7 @@ public class DataInitializer implements CommandLineRunner {
                     .build();
             
             userRepository.save(agent);
-            log.info("✅ Agent créé: agent@pelican.sn / Agent123!");
+            log.info("✅ Agent créé: agent@pelican.sn");
         }
     }
 }
