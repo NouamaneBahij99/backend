@@ -6,7 +6,7 @@ import com.magentatechno.pelican.entity.HistoriqueCourrier;
 import com.magentatechno.pelican.entity.User;
 import com.magentatechno.pelican.exception.ResourceNotFoundException;
 import com.magentatechno.pelican.repository.CourrierRepository;
-import com.magentatechno.pelican.repository.HistoriqueCourierRepository;
+import com.magentatechno.pelican.repository.HistoriqueCourrierRepository;
 import com.magentatechno.pelican.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
 public class CourrierService {
 
     private final CourrierRepository courrierRepository;
-    private final HistoriqueCourierRepository historiqueCourierRepository;
+    private final HistoriqueCourrierRepository historiqueCourrierRepository;
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
     private final AuditService auditService;
@@ -51,7 +51,7 @@ public class CourrierService {
                 .type(Courrier.TypeCourrier.valueOf(request.getType()))
                 .statut(Courrier.StatutCourrier.NOUVEAU)
                 .priorite(request.getPriorite() != null ?
-                    Courrier.Priorite.valueOf(request.getPriorite()) : Courrier.Priorite.NORMALE)
+                        Courrier.Priorite.valueOf(request.getPriorite()) : Courrier.Priorite.NORMALE)
                 .createur(currentUser)
                 .build();
 
@@ -76,19 +76,12 @@ public class CourrierService {
 
     @Transactional(readOnly = true)
     public Page<CourrierDto.Response> findAll(Pageable pageable, String search, String type, String statut) {
-        Page<Courrier> courriers;
+        Courrier.TypeCourrier typeEnum = (type != null && !type.isEmpty()) ? Courrier.TypeCourrier.valueOf(type) : null;
+        Courrier.StatutCourrier statutEnum = (statut != null && !statut.isEmpty()) ? Courrier.StatutCourrier.valueOf(statut) : null;
+        String searchParam = (search != null && !search.isEmpty()) ? search : null;
 
-        if (search != null && !search.isEmpty()) {
-            courriers = courrierRepository.search(search, pageable);
-        } else if (type != null && !type.isEmpty()) {
-            courriers = courrierRepository.findByType(Courrier.TypeCourrier.valueOf(type), pageable);
-        } else if (statut != null && !statut.isEmpty()) {
-            courriers = courrierRepository.findByStatut(Courrier.StatutCourrier.valueOf(statut), pageable);
-        } else {
-            courriers = courrierRepository.findAll(pageable);
-        }
-
-        return courriers.map(this::mapToResponseSimple);
+        return courrierRepository.searchAdvanced(searchParam, typeEnum, statutEnum, pageable)
+                .map(this::mapToResponseSimple);
     }
 
     @Transactional(readOnly = true)
@@ -122,7 +115,6 @@ public class CourrierService {
         return mapToResponseSimple(updated);
     }
 
-    // ✨ NOUVELLE METHODE: TRANSFERER (US-06)
     @Transactional
     public CourrierDto.Response transferer(Long id, Long userId, String commentaire) {
         Courrier courrier = courrierRepository.findById(id)
@@ -135,14 +127,14 @@ public class CourrierService {
 
         courrier.setAssigneA(nouvelUtilisateur);
         courrier.setStatut(Courrier.StatutCourrier.EN_COURS);
-        
-        String message = "Transfere de " + 
-            (ancienUtilisateur != null ? ancienUtilisateur.getNom() + " " + ancienUtilisateur.getPrenom() : "Non assigne") + 
-            " vers " + nouvelUtilisateur.getNom() + " " + nouvelUtilisateur.getPrenom();
+
+        String message = "Transfere de " +
+                (ancienUtilisateur != null ? ancienUtilisateur.getNom() + " " + ancienUtilisateur.getPrenom() : "Non assigne") +
+                " vers " + nouvelUtilisateur.getNom() + " " + nouvelUtilisateur.getPrenom();
         if (commentaire != null && !commentaire.isEmpty()) {
             message += " - " + commentaire;
         }
-        
+
         addHistorique(courrier, currentUser, HistoriqueCourrier.Action.TRANSFERT, message);
         Courrier updated = courrierRepository.save(courrier);
 
@@ -153,8 +145,8 @@ public class CourrierService {
         }
 
         try {
-            auditService.log(currentUser.getEmail(), "TRANSFERER_COURRIER", "COURRIER", true, 
-                "Courrier " + courrier.getNumero() + " transfere");
+            auditService.log(currentUser.getEmail(), "TRANSFERER_COURRIER", "COURRIER", true,
+                    "Courrier " + courrier.getNumero() + " transfere");
         } catch (Exception e) {
             log.warn("Audit error: {}", e.getMessage());
         }
@@ -222,6 +214,30 @@ public class CourrierService {
         return mapToResponseSimple(updated);
     }
 
+    @Transactional
+    public CourrierDto.Response update(Long id, CourrierDto.UpdateRequest request) {
+        Courrier courrier = courrierRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Courrier non trouve"));
+        User currentUser = getCurrentUser();
+
+        if (request.getObjet() != null) courrier.setObjet(request.getObjet());
+        if (request.getContenu() != null) courrier.setContenu(request.getContenu());
+        if (request.getExpediteur() != null) courrier.setExpediteur(request.getExpediteur());
+        if (request.getDestinataire() != null) courrier.setDestinataire(request.getDestinataire());
+        if (request.getPriorite() != null) courrier.setPriorite(Courrier.Priorite.valueOf(request.getPriorite()));
+
+        addHistorique(courrier, currentUser, HistoriqueCourrier.Action.MODIFICATION, "Courrier modifie");
+
+        try {
+            auditService.log(currentUser.getEmail(), "UPDATE_COURRIER", "COURRIER", true,
+                    "Courrier " + courrier.getNumero() + " modifie");
+        } catch (Exception e) {
+            log.warn("Audit error: {}", e.getMessage());
+        }
+
+        return mapToResponseSimple(courrierRepository.save(courrier));
+    }
+
     private void addHistorique(Courrier courrier, User user, HistoriqueCourrier.Action action, String comment) {
         HistoriqueCourrier hist = HistoriqueCourrier.builder()
                 .courrier(courrier)
@@ -262,9 +278,9 @@ public class CourrierService {
                 .fichierNom(c.getFichierNom())
                 .fichierPath(c.getFichierPath())
                 .createurNom(c.getCreateur() != null ?
-                    c.getCreateur().getNom() + " " + c.getCreateur().getPrenom() : null)
+                        c.getCreateur().getNom() + " " + c.getCreateur().getPrenom() : null)
                 .assigneANom(c.getAssigneA() != null ?
-                    c.getAssigneA().getNom() + " " + c.getAssigneA().getPrenom() : null)
+                        c.getAssigneA().getNom() + " " + c.getAssigneA().getPrenom() : null)
                 .archive(c.isArchive())
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())
@@ -298,9 +314,9 @@ public class CourrierService {
                 .fichierNom(c.getFichierNom())
                 .fichierPath(c.getFichierPath())
                 .createurNom(c.getCreateur() != null ?
-                    c.getCreateur().getNom() + " " + c.getCreateur().getPrenom() : null)
+                        c.getCreateur().getNom() + " " + c.getCreateur().getPrenom() : null)
                 .assigneANom(c.getAssigneA() != null ?
-                    c.getAssigneA().getNom() + " " + c.getAssigneA().getPrenom() : null)
+                        c.getAssigneA().getNom() + " " + c.getAssigneA().getPrenom() : null)
                 .archive(c.isArchive())
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())
