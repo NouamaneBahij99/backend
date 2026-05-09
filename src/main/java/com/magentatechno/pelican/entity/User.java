@@ -16,14 +16,10 @@ import java.util.List;
 
 @Entity
 @Table(name = "users", indexes = {
-    @Index(name = "idx_user_email", columnList = "email", unique = true)
+        @Index(name = "idx_user_email", columnList = "email", unique = true)
 })
 @EntityListeners(AuditingEntityListener.class)
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class User implements UserDetails {
 
     @Id
@@ -53,6 +49,10 @@ public class User implements UserDetails {
 
     private String service;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "noeud_id")
+    private NoeudOrganisation noeud;
+
     @Builder.Default
     private boolean enabled = true;
 
@@ -63,7 +63,6 @@ public class User implements UserDetails {
     private int failedLoginAttempts = 0;
 
     private LocalDateTime lockTime;
-
     private LocalDateTime lastLogin;
 
     @CreatedDate
@@ -79,17 +78,11 @@ public class User implements UserDetails {
     }
 
     @Override
-    public String getUsername() {
-        return email;
-    }
+    public String getUsername() { return email; }
 
     @Override
-    public boolean isAccountNonExpired() {
-        return true;
-    }
+    public boolean isAccountNonExpired() { return true; }
 
     @Override
-    public boolean isCredentialsNonExpired() {
-        return true;
-    }
+    public boolean isCredentialsNonExpired() { return true; }
 }

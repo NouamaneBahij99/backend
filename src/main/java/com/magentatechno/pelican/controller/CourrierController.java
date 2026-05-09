@@ -1,6 +1,7 @@
 package com.magentatechno.pelican.controller;
 
 import com.magentatechno.pelican.dto.CourrierDto;
+import com.magentatechno.pelican.dto.WorkflowDto;
 import com.magentatechno.pelican.service.CourrierService;
 import com.magentatechno.pelican.service.PdfService;
 import jakarta.validation.Valid;
@@ -14,6 +15,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/courriers")
@@ -51,6 +54,11 @@ public class CourrierController {
             @PathVariable Long id,
             @Valid @RequestBody CourrierDto.UpdateRequest request) {
         return ResponseEntity.ok(courrierService.update(id, request));
+    }
+
+    @GetMapping("/{id}/circuit")
+    public ResponseEntity<List<WorkflowDto.CircuitCourrierDto>> getCircuit(@PathVariable Long id) {
+        return ResponseEntity.ok(courrierService.getCircuit(id));
     }
 
     @PutMapping("/{id}/affecter/{userId}")
@@ -91,11 +99,15 @@ public class CourrierController {
         return ResponseEntity.ok(courrierService.archiver(id));
     }
 
+    @GetMapping("/{id}/historique")
+    public ResponseEntity<?> getHistorique(@PathVariable Long id) {
+        return ResponseEntity.ok(courrierService.findById(id).getHistoriques());
+    }
+
     @GetMapping("/{id}/pdf")
     public ResponseEntity<ByteArrayResource> generatePdf(@PathVariable Long id) {
         byte[] pdfBytes = pdfService.generateCourrierPdf(id);
         ByteArrayResource resource = new ByteArrayResource(pdfBytes);
-
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION,

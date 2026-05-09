@@ -23,13 +23,11 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
 
     public Page<NotificationDto.Response> findByUserId(Long userId, Pageable pageable) {
-        return notificationRepository.findByUserId(userId, pageable)
-                .map(this::mapToResponse);
+        return notificationRepository.findByUserId(userId, pageable).map(this::mapToResponse);
     }
 
     public Page<NotificationDto.Response> findUnreadByUserId(Long userId, Pageable pageable) {
-        return notificationRepository.findByUserIdAndIsReadFalse(userId, pageable)
-                .map(this::mapToResponse);
+        return notificationRepository.findByUserIdAndIsReadFalse(userId, pageable).map(this::mapToResponse);
     }
 
     public long countUnreadByUserId(Long userId) {
@@ -47,39 +45,45 @@ public class NotificationService {
 
     @Transactional
     public void notifyAssignment(User user, Courrier courrier) {
-        Notification notification = Notification.builder()
-                .user(user)
-                .titre("Nouveau courrier assigné")
-                .message("Un courrier vous a été assigné: " + courrier.getObjet())
-                .lien("/courriers/" + courrier.getId())
-                .type(Notification.TypeNotification.COURRIER_ASSIGNE)
-                .isRead(false)
-                .build();
-        notificationRepository.save(notification);
-        log.info("Notification envoyée à: {}", user.getEmail());
+        save(user, "Nouveau courrier assigné",
+                "Un courrier vous a été assigné: " + courrier.getObjet(),
+                "/courriers/" + courrier.getId(),
+                Notification.TypeNotification.COURRIER_ASSIGNE);
     }
 
     @Transactional
     public void notifyValidation(User user, Courrier courrier) {
-        Notification notification = Notification.builder()
-                .user(user)
-                .titre("Courrier validé")
-                .message("Votre courrier a été validé: " + courrier.getObjet())
-                .lien("/courriers/" + courrier.getId())
-                .type(Notification.TypeNotification.COURRIER_VALIDE)
-                .isRead(false)
-                .build();
-        notificationRepository.save(notification);
+        save(user, "Courrier validé",
+                "Votre courrier a été validé: " + courrier.getObjet(),
+                "/courriers/" + courrier.getId(),
+                Notification.TypeNotification.COURRIER_VALIDE);
     }
 
     @Transactional
     public void notifyRejection(User user, Courrier courrier, String reason) {
+        save(user, "Courrier rejeté",
+                "Votre courrier a été rejeté: " + reason,
+                "/courriers/" + courrier.getId(),
+                Notification.TypeNotification.COURRIER_REJETE);
+    }
+
+    @Transactional
+    public void notifyNouvelleEtape(User user, Courrier courrier, String nomEtape) {
+        save(user, "Nouvelle étape à traiter",
+                "Le courrier '" + courrier.getObjet() + "' attend votre traitement à l'étape: " + nomEtape,
+                "/courriers/" + courrier.getId(),
+                Notification.TypeNotification.COURRIER_ASSIGNE);
+        log.info("Notification étape '{}' envoyée à: {}", nomEtape, user.getEmail());
+    }
+
+    private void save(User user, String titre, String message, String lien,
+                      Notification.TypeNotification type) {
         Notification notification = Notification.builder()
                 .user(user)
-                .titre("Courrier rejeté")
-                .message("Votre courrier a été rejeté: " + reason)
-                .lien("/courriers/" + courrier.getId())
-                .type(Notification.TypeNotification.COURRIER_REJETE)
+                .titre(titre)
+                .message(message)
+                .lien(lien)
+                .type(type)
                 .isRead(false)
                 .build();
         notificationRepository.save(notification);

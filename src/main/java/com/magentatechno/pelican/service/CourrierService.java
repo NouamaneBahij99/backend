@@ -1,6 +1,7 @@
 package com.magentatechno.pelican.service;
 
 import com.magentatechno.pelican.dto.CourrierDto;
+import com.magentatechno.pelican.dto.WorkflowDto;
 import com.magentatechno.pelican.entity.Courrier;
 import com.magentatechno.pelican.entity.HistoriqueCourrier;
 import com.magentatechno.pelican.entity.User;
@@ -36,6 +37,8 @@ public class CourrierService {
     private final FileStorageService fileStorageService;
     private final AuditService auditService;
     private final NotificationService notificationService;
+    private final WorkflowExecutionService workflowExecutionService;
+    private final WorkflowService workflowService;
 
     @Transactional
     public CourrierDto.Response create(CourrierDto.CreateRequest request, MultipartFile file) {
@@ -65,8 +68,16 @@ public class CourrierService {
         addHistorique(saved, currentUser, HistoriqueCourrier.Action.CREATION, "Courrier cree");
         saved = courrierRepository.save(saved);
 
+        // Appliquer automatiquement le workflow
         try {
-            auditService.log(currentUser.getEmail(), "CREATE_COURRIER", "COURRIER", true, "Cree: " + saved.getNumero());
+            workflowExecutionService.initialiserWorkflow(saved);
+        } catch (Exception e) {
+            log.warn("Workflow non applique (aucun workflow configure): {}", e.getMessage());
+        }
+
+        try {
+            auditService.log(currentUser.getEmail(), "CREATE_COURRIER", "COURRIER", true,
+                    "Cree: " + saved.getNumero());
         } catch (Exception e) {
             log.warn("Audit error: {}", e.getMessage());
         }
@@ -76,9 +87,17 @@ public class CourrierService {
 
     @Transactional(readOnly = true)
     public Page<CourrierDto.Response> findAll(Pageable pageable, String search, String type, String statut) {
-        Courrier.TypeCourrier typeEnum = (type != null && !type.isEmpty()) ? Courrier.TypeCourrier.valueOf(type) : null;
-        Courrier.StatutCourrier statutEnum = (statut != null && !statut.isEmpty()) ? Courrier.StatutCourrier.valueOf(statut) : null;
-        String searchParam = (search != null && !search.isEmpty()) ? search : null;
+        boolean hasSearch = search != null && !search.isEmpty();
+        boolean hasType   = type   != null && !type.isEmpty();
+        boolean hasStatut = statut != null && !statut.isEmpty();
+
+        if (!hasSearch && !hasType && !hasStatut) {
+            return courrierRepository.findAll(pageable).map(this::mapToResponseSimple);
+        }
+
+        Courrier.TypeCourrier typeEnum     = hasType   ? Courrier.TypeCourrier.valueOf(type)     : null;
+        Courrier.StatutCourrier statutEnum = hasStatut ? Courrier.StatutCourrier.valueOf(statut) : null;
+        String searchParam                 = hasSearch ? search : null;
 
         return courrierRepository.searchAdvanced(searchParam, typeEnum, statutEnum, pageable)
                 .map(this::mapToResponseSimple);
@@ -129,11 +148,10 @@ public class CourrierService {
         courrier.setStatut(Courrier.StatutCourrier.EN_COURS);
 
         String message = "Transfere de " +
-                (ancienUtilisateur != null ? ancienUtilisateur.getNom() + " " + ancienUtilisateur.getPrenom() : "Non assigne") +
+                (ancienUtilisateur != null ?
+                        ancienUtilisateur.getNom() + " " + ancienUtilisateur.getPrenom() : "Non assigne") +
                 " vers " + nouvelUtilisateur.getNom() + " " + nouvelUtilisateur.getPrenom();
-        if (commentaire != null && !commentaire.isEmpty()) {
-            message += " - " + commentaire;
-        }
+        if (commentaire != null && !commentaire.isEmpty()) message += " - " + commentaire;
 
         addHistorique(courrier, currentUser, HistoriqueCourrier.Action.TRANSFERT, message);
         Courrier updated = courrierRepository.save(courrier);
@@ -144,60 +162,26 @@ public class CourrierService {
             log.warn("Notif error: {}", e.getMessage());
         }
 
-        try {
-            auditService.log(currentUser.getEmail(), "TRANSFERER_COURRIER", "COURRIER", true,
-                    "Courrier " + courrier.getNumero() + " transfere");
-        } catch (Exception e) {
-            log.warn("Audit error: {}", e.getMessage());
-        }
-
-        log.info("Courrier {} transfere a {}", courrier.getNumero(), nouvelUtilisateur.getEmail());
         return mapToResponseSimple(updated);
     }
 
     @Transactional
     public CourrierDto.Response valider(Long id, String commentaire) {
-        Courrier courrier = courrierRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Courrier non trouve"));
         User currentUser = getCurrentUser();
 
-        courrier.setStatut(Courrier.StatutCourrier.VALIDE);
-        addHistorique(courrier, currentUser, HistoriqueCourrier.Action.VALIDATION,
+        Courrier updated = workflowExecutionService.avancerEtape(id, commentaire, currentUser);
+        addHistorique(updated, currentUser, HistoriqueCourrier.Action.VALIDATION,
                 commentaire != null ? commentaire : "Valide");
-
-        Courrier updated = courrierRepository.save(courrier);
-
-        try {
-            if (courrier.getCreateur() != null) {
-                notificationService.notifyValidation(courrier.getCreateur(), courrier);
-            }
-        } catch (Exception e) {
-            log.warn("Notif error: {}", e.getMessage());
-        }
-
-        return mapToResponseSimple(updated);
+        return mapToResponseSimple(courrierRepository.save(updated));
     }
 
     @Transactional
     public CourrierDto.Response rejeter(Long id, String motif) {
-        Courrier courrier = courrierRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Courrier non trouve"));
         User currentUser = getCurrentUser();
 
-        courrier.setStatut(Courrier.StatutCourrier.REJETE);
-        addHistorique(courrier, currentUser, HistoriqueCourrier.Action.REJET, motif);
-
-        Courrier updated = courrierRepository.save(courrier);
-
-        try {
-            if (courrier.getCreateur() != null) {
-                notificationService.notifyRejection(courrier.getCreateur(), courrier, motif);
-            }
-        } catch (Exception e) {
-            log.warn("Notif error: {}", e.getMessage());
-        }
-
-        return mapToResponseSimple(updated);
+        Courrier updated = workflowExecutionService.rejeterEtape(id, motif, currentUser);
+        addHistorique(updated, currentUser, HistoriqueCourrier.Action.REJET, motif);
+        return mapToResponseSimple(courrierRepository.save(updated));
     }
 
     @Transactional
@@ -210,8 +194,7 @@ public class CourrierService {
         courrier.setStatut(Courrier.StatutCourrier.ARCHIVE);
         addHistorique(courrier, currentUser, HistoriqueCourrier.Action.ARCHIVAGE, "Archive");
 
-        Courrier updated = courrierRepository.save(courrier);
-        return mapToResponseSimple(updated);
+        return mapToResponseSimple(courrierRepository.save(courrier));
     }
 
     @Transactional
@@ -238,16 +221,19 @@ public class CourrierService {
         return mapToResponseSimple(courrierRepository.save(courrier));
     }
 
-    private void addHistorique(Courrier courrier, User user, HistoriqueCourrier.Action action, String comment) {
+    public List<WorkflowDto.CircuitCourrierDto> getCircuit(Long id) {
+        return workflowService.getCircuitCourrier(id);
+    }
+
+    private void addHistorique(Courrier courrier, User user,
+                                HistoriqueCourrier.Action action, String comment) {
         HistoriqueCourrier hist = HistoriqueCourrier.builder()
                 .courrier(courrier)
                 .user(user)
                 .action(action)
                 .commentaire(comment)
                 .build();
-        if (courrier.getHistoriques() == null) {
-            courrier.setHistoriques(new ArrayList<>());
-        }
+        if (courrier.getHistoriques() == null) courrier.setHistoriques(new ArrayList<>());
         courrier.getHistoriques().add(hist);
     }
 
@@ -281,6 +267,8 @@ public class CourrierService {
                         c.getCreateur().getNom() + " " + c.getCreateur().getPrenom() : null)
                 .assigneANom(c.getAssigneA() != null ?
                         c.getAssigneA().getNom() + " " + c.getAssigneA().getPrenom() : null)
+                .etapeCouranteNom(c.getEtapeCourante() != null ? c.getEtapeCourante().getNom() : null)
+                .workflowNom(c.getWorkflow() != null ? c.getWorkflow().getNom() : null)
                 .archive(c.isArchive())
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())
@@ -293,7 +281,8 @@ public class CourrierService {
             historiques = c.getHistoriques().stream()
                     .map(h -> CourrierDto.HistoriqueDto.builder()
                             .id(h.getId())
-                            .userNom(h.getUser() != null ? h.getUser().getNom() + " " + h.getUser().getPrenom() : "Systeme")
+                            .userNom(h.getUser() != null ?
+                                    h.getUser().getNom() + " " + h.getUser().getPrenom() : "Systeme")
                             .action(h.getAction().name())
                             .commentaire(h.getCommentaire())
                             .date(h.getDate())
@@ -317,6 +306,8 @@ public class CourrierService {
                         c.getCreateur().getNom() + " " + c.getCreateur().getPrenom() : null)
                 .assigneANom(c.getAssigneA() != null ?
                         c.getAssigneA().getNom() + " " + c.getAssigneA().getPrenom() : null)
+                .etapeCouranteNom(c.getEtapeCourante() != null ? c.getEtapeCourante().getNom() : null)
+                .workflowNom(c.getWorkflow() != null ? c.getWorkflow().getNom() : null)
                 .archive(c.isArchive())
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())

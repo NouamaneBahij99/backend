@@ -13,18 +13,14 @@ import java.util.List;
 
 @Entity
 @Table(name = "courriers", indexes = {
-    @Index(name = "idx_courrier_numero", columnList = "numero", unique = true),
-    @Index(name = "idx_courrier_statut", columnList = "statut"),
-    @Index(name = "idx_courrier_type", columnList = "type"),
-    @Index(name = "idx_courrier_createur", columnList = "createur_id"),
-    @Index(name = "idx_courrier_assigne", columnList = "assigne_a_id")
+        @Index(name = "idx_courrier_numero", columnList = "numero", unique = true),
+        @Index(name = "idx_courrier_statut", columnList = "statut"),
+        @Index(name = "idx_courrier_type", columnList = "type"),
+        @Index(name = "idx_courrier_createur", columnList = "createur_id"),
+        @Index(name = "idx_courrier_assigne", columnList = "assigne_a_id")
 })
 @EntityListeners(AuditingEntityListener.class)
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class Courrier {
 
     @Id
@@ -71,9 +67,22 @@ public class Courrier {
     @JoinColumn(name = "assigne_a_id")
     private User assigneA;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "workflow_id")
+    private WorkflowConfig workflow;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "etape_courante_id")
+    private EtapeWorkflow etapeCourante;
+
     @OneToMany(mappedBy = "courrier", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     private List<HistoriqueCourrier> historiques = new ArrayList<>();
+
+    @OneToMany(mappedBy = "courrier", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("etape.ordre ASC")
+    @Builder.Default
+    private List<EtapeCourrier> etapesCourrier = new ArrayList<>();
 
     @Builder.Default
     private boolean archive = false;
@@ -85,15 +94,7 @@ public class Courrier {
     @LastModifiedDate
     private LocalDateTime updatedAt;
 
-    public enum TypeCourrier {
-        ENTRANT, SORTANT
-    }
-
-    public enum StatutCourrier {
-        NOUVEAU, EN_COURS, VALIDE, REJETE, ARCHIVE
-    }
-
-    public enum Priorite {
-        BASSE, NORMALE, HAUTE, URGENTE
-    }
+    public enum TypeCourrier { ENTRANT, SORTANT }
+    public enum StatutCourrier { NOUVEAU, EN_COURS, VALIDE, REJETE, ARCHIVE }
+    public enum Priorite { BASSE, NORMALE, HAUTE, URGENTE }
 }

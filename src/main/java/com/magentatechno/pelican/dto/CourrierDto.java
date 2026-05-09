@@ -9,31 +9,21 @@ import java.util.List;
 
 public class CourrierDto {
 
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
+    @Data @NoArgsConstructor @AllArgsConstructor
     public static class CreateRequest {
         @NotBlank(message = "Objet requis")
         private String objet;
-
         private String contenu;
-
         @NotBlank(message = "Expéditeur requis")
         private String expediteur;
-
         @NotBlank(message = "Destinataire requis")
         private String destinataire;
-
         @NotBlank(message = "Type requis")
         private String type;
-
         private String priorite;
     }
 
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
+    @Data @NoArgsConstructor @AllArgsConstructor @Builder
     public static class Response {
         private Long id;
         private String numero;
@@ -48,16 +38,15 @@ public class CourrierDto {
         private String fichierPath;
         private String createurNom;
         private String assigneANom;
+        private String etapeCouranteNom;
+        private String workflowNom;
         private boolean archive;
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
         private List<HistoriqueDto> historiques;
     }
 
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
+    @Data @NoArgsConstructor @AllArgsConstructor @Builder
     public static class HistoriqueDto {
         private Long id;
         private String userNom;
@@ -66,9 +55,7 @@ public class CourrierDto {
         private LocalDateTime date;
     }
 
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
+    @Data @NoArgsConstructor @AllArgsConstructor
     public static class UpdateRequest {
         private String objet;
         private String contenu;
