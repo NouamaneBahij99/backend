@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Repository
 public interface CourrierRepository extends JpaRepository<Courrier, Long> {
@@ -50,4 +51,14 @@ public interface CourrierRepository extends JpaRepository<Courrier, Long> {
             @Param("statut") Courrier.StatutCourrier statut,
             Pageable pageable
     );
+
+    @Query("SELECT c FROM Courrier c " +
+           "LEFT JOIN FETCH c.historiques h " +
+           "LEFT JOIN FETCH h.user " +
+           "LEFT JOIN FETCH c.etapeCourante e " +
+           "LEFT JOIN FETCH c.workflow " +
+           "LEFT JOIN FETCH c.createur " +
+           "LEFT JOIN FETCH c.assigneA " +
+           "WHERE c.id = :id")
+    Optional<Courrier> findByIdForPdf(@Param("id") Long id);
 }
